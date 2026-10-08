@@ -1,6 +1,5 @@
 import os
 import time
-##bagas
 import streamlit as st
 from dotenv import load_dotenv
 from google import genai
