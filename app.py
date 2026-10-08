@@ -58,16 +58,6 @@ with st.sidebar:
              "dan menampilkan sumbernya. Jika tidak tersedia, bot memakai pengetahuan model saja.",
     )
 
-    st.subheader("🎨 Kreativitas")
-    temperature = st.slider(
-        "Temperature", 0.0, 2.0, 0.7, 0.1,
-        help="Rendah = lebih faktual dan konsisten. Tinggi = lebih kreatif dan bervariasi.",
-    )
-    top_p = st.slider(
-        "Top-p", 0.1, 1.0, 0.95, 0.05,
-        help="Membatasi pilihan kata ke kumpulan kata paling mungkin. Rendah = lebih fokus.",
-    )
-
     if st.button("🗑️ Reset percakapan", use_container_width=True):
         st.session_state.messages = []
         st.session_state.pending = None
@@ -95,7 +85,7 @@ def tampil_sumber(sumber):
                 st.markdown(f"- [{judul}]({url})")
 
 
-def tanya_gemini(contents, system_prompt, temperature, top_p, pakai_grounding):
+def tanya_gemini(contents, system_prompt, pakai_grounding):
     """Urutan percobaan: (grounding x2) -> model utama tanpa grounding -> model cadangan."""
     rencana = []
     if pakai_grounding:
@@ -106,8 +96,6 @@ def tanya_gemini(contents, system_prompt, temperature, top_p, pakai_grounding):
     for model, dengan_grounding in rencana:
         config = types.GenerateContentConfig(
             system_instruction=system_prompt,
-            temperature=temperature,
-            top_p=top_p,
             tools=[types.Tool(google_search=types.GoogleSearch())] if dengan_grounding else None,
         )
         try:
@@ -170,7 +158,7 @@ if prompt:
             sumber, dipakai = [], False
             try:
                 jawaban, sumber, dipakai = tanya_gemini(
-                    contents, system_prompt, temperature, top_p, grounding
+                    contents, system_prompt, grounding
                 )
             except Exception as e:
                 jawaban = f"⚠️ Server Gemini sedang sibuk atau bermasalah. Coba lagi sebentar.\n\n`{e}`"
