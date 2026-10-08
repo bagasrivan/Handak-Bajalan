@@ -16,17 +16,6 @@ Cakupan keahlian:
 - Kuliner khas Banjar
 - Oleh-oleh dan kerajinan
 
-## Parameter Kreatif
-| Parameter | Fungsi |
-|---|---|
-| Logat (Banjar kental / Banjar ringan / Indonesia netral) | Mengubah gaya bahasa dan persona pemandu |
-| Wilayah fokus (13 kabupaten/kota + semua Kalsel) | Mempersempit rekomendasi ke area tertentu |
-| Gaya liburan (backpacker, keluarga, kuliner, petualangan alam, budaya) | Menyesuaikan jenis tempat dan ritme perjalanan |
-| Temperature | Rendah = faktual dan konsisten, tinggi = kreatif dan bervariasi |
-| Top-p | Mengatur keragaman pilihan kata |
-| Mode faktual (Google Search grounding) | Memverifikasi info terkini dan menampilkan sumber |
-| Memory | Seluruh riwayat percakapan dikirim ke model sehingga konteks terjaga |
-
 ## Pengurangan Halusinasi
 Pengetahuan lokal Kalsel tidak selalu lengkap di model, sehingga dipakai pendekatan berlapis:
 1. **Aturan di system prompt**: tidak mengarang nama tempat, tidak memberi angka pasti untuk harga/jam buka, dan boleh menjawab "tidak yakin".
