@@ -156,6 +156,8 @@ for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
         tampil_sumber(m.get("sumber"))
+        if m.get("catatan"):
+            st.caption(m["catatan"])
 
 # Sapaan dan quick prompt hanya tampil saat chat masih kosong.
 # Sapaan tidak disimpan ke riwayat supaya percakapan ke Gemini tetap diawali pesan user.
@@ -203,9 +205,16 @@ if prompt:
             jawaban = f"⚠️ Server Gemini sedang sibuk atau bermasalah. Coba lagi sebentar.\n\n`{e}`"
             st.markdown(jawaban)
         tampil_sumber(sumber)
-        if grounding and not info["dipakai"] and not jawaban.startswith("⚠️"):
-            st.caption("ℹ️ Pencarian Google tidak tersedia, jawaban memakai pengetahuan model.")
+
+    catatan = None
+    if grounding and not info["dipakai"] and not jawaban.startswith("⚠️"):
+        catatan = "ℹ️ Pencarian Google tidak tersedia, jawaban memakai pengetahuan model."
 
     st.session_state.messages.append(
-        {"role": "assistant", "content": jawaban, "sumber": sumber}
+        {"role": "assistant", "content": jawaban, "sumber": sumber, "catatan": catatan}
     )
+
+    # Render ulang dari riwayat. Struktur elemen saat streaming (placeholder + write_stream)
+    # berbeda dengan render riwayat, dan perbedaan itu yang membuat teks lama muncul dobel
+    # dan tampak pudar di proses berikutnya.
+    st.rerun()
