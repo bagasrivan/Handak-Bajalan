@@ -97,7 +97,7 @@ def buat_config(system_prompt, dengan_grounding):
     return types.GenerateContentConfig(**kwargs)
 
 
-def stream_gemini(contents, system_prompt, pakai_grounding, info, tunggu):
+def stream_gemini(contents, bangun_prompt, pakai_grounding, info, tunggu):
     """Generator yang meng-stream jawaban untuk st.write_stream.
 
     Urutan percobaan: (grounding x2) -> model utama tanpa grounding -> model cadangan.
@@ -117,7 +117,7 @@ def stream_gemini(contents, system_prompt, pakai_grounding, info, tunggu):
             stream = client.models.generate_content_stream(
                 model=model,
                 contents=contents,
-                config=buat_config(system_prompt, dengan_grounding),
+                config=buat_config(bangun_prompt(dengan_grounding), dengan_grounding),
             )
             for chunk in stream:
                 kumpulkan_sumber(chunk, info["sumber"], terlihat)
@@ -185,7 +185,8 @@ if prompt:
         for m in st.session_state.messages
     ]
 
-    system_prompt = build_system_prompt(logat, wilayah, gaya, grounding)
+    def bangun_prompt(dengan_grounding):
+        return build_system_prompt(logat, wilayah, gaya, dengan_grounding)
 
     with st.chat_message("assistant"):
         tunggu = st.empty()
@@ -193,7 +194,7 @@ if prompt:
         info = {"sumber": [], "dipakai": False}
         try:
             jawaban = st.write_stream(
-                stream_gemini(contents, system_prompt, grounding, info, tunggu)
+                stream_gemini(contents, bangun_prompt, grounding, info, tunggu)
             )
             sumber = info["sumber"]
         except Exception as e:
