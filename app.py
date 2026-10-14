@@ -13,9 +13,6 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 MODEL_UTAMA = "gemini-3.6-flash"
 MODEL_CADANGAN = "gemini-3.8-flash"
 
-# Opsional: kurangi "thinking" supaya token pertama muncul lebih cepat.
-# Coba "low" atau "minimal", lalu cek nilai yang didukung model di dokumentasi Google AI.
-# Biarkan None kalau belum mau mengubah perilaku model.
 THINKING_LEVEL = None
 
 WILAYAH = [
