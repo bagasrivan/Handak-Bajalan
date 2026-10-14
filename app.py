@@ -13,6 +13,11 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 MODEL_UTAMA = "gemini-3.6-flash"
 MODEL_CADANGAN = "gemini-3.8-flash"
 
+# Opsional: kurangi "thinking" supaya token pertama muncul lebih cepat.
+# Coba "low" atau "minimal", lalu cek nilai yang didukung model di dokumentasi Google AI.
+# Biarkan None kalau belum mau mengubah perilaku model.
+THINKING_LEVEL = None
+
 WILAYAH = [
     "Semua Kalsel", "Banjarmasin", "Banjarbaru", "Banjar", "Barito Kuala",
     "Tapin", "Hulu Sungai Selatan", "Hulu Sungai Tengah", "Hulu Sungai Utara",
@@ -63,18 +68,20 @@ with st.sidebar:
         st.rerun()
 
 # ------------------------------------------------------------ Fungsi bantu
-def ambil_sumber(response):
-    """Ambil daftar (judul, url) dari metadata grounding, tanpa duplikat."""
-    hasil, terlihat = [], set()
+def kumpulkan_sumber(response, sumber, terlihat):
+    """Tambahkan (judul, url) dari metadata grounding ke daftar `sumber`, tanpa duplikat.
+
+    Saat streaming, metadata grounding biasanya baru datang di chunk-chunk terakhir,
+    jadi fungsi ini dipanggil untuk setiap chunk dan mengumpulkan hasilnya.
+    """
     try:
         meta = response.candidates[0].grounding_metadata
         for chunk in (meta.grounding_chunks or []):
             if chunk.web and chunk.web.uri not in terlihat:
                 terlihat.add(chunk.web.uri)
-                hasil.append((chunk.web.title or chunk.web.uri, chunk.web.uri))
+                sumber.append((chunk.web.title or chunk.web.uri, chunk.web.uri))
     except Exception:
         pass
-    return hasil
 
 
 def tampil_sumber(sumber):
@@ -84,8 +91,22 @@ def tampil_sumber(sumber):
                 st.markdown(f"- [{judul}]({url})")
 
 
-def tanya_gemini(contents, system_prompt, pakai_grounding):
-    """Urutan percobaan: (grounding x2) -> model utama tanpa grounding -> model cadangan."""
+def buat_config(system_prompt, dengan_grounding):
+    kwargs = {"system_instruction": system_prompt}
+    if dengan_grounding:
+        kwargs["tools"] = [types.Tool(google_search=types.GoogleSearch())]
+    if THINKING_LEVEL:
+        kwargs["thinking_config"] = types.ThinkingConfig(thinking_level=THINKING_LEVEL)
+    return types.GenerateContentConfig(**kwargs)
+
+
+def stream_gemini(contents, system_prompt, pakai_grounding, info, tunggu):
+    """Generator yang meng-stream jawaban untuk st.write_stream.
+
+    Urutan percobaan: (grounding x2) -> model utama tanpa grounding -> model cadangan.
+    Percobaan ulang hanya mungkin selama belum ada teks yang dikirim ke layar.
+    Hasil sampingan (sumber, apakah grounding dipakai) disimpan di dict `info`.
+    """
     rencana = []
     if pakai_grounding:
         rencana += [(MODEL_UTAMA, True)] * 2
@@ -93,17 +114,32 @@ def tanya_gemini(contents, system_prompt, pakai_grounding):
 
     galat_terakhir = None
     for model, dengan_grounding in rencana:
-        config = types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            tools=[types.Tool(google_search=types.GoogleSearch())] if dengan_grounding else None,
-        )
+        info["sumber"], terlihat = [], set()
+        sudah_keluar = False
         try:
-            r = client.models.generate_content(model=model, contents=contents, config=config)
-            if r.text:
-                return r.text, ambil_sumber(r), dengan_grounding
+            stream = client.models.generate_content_stream(
+                model=model,
+                contents=contents,
+                config=buat_config(system_prompt, dengan_grounding),
+            )
+            for chunk in stream:
+                kumpulkan_sumber(chunk, info["sumber"], terlihat)
+                if chunk.text:
+                    if not sudah_keluar:
+                        tunggu.empty()  # hapus teks "Sabantar..." saat token pertama tiba
+                        sudah_keluar = True
+                    yield chunk.text
+            if sudah_keluar:
+                info["dipakai"] = dengan_grounding
+                return
         except Exception as e:
             galat_terakhir = e
-            time.sleep(2)
+            if sudah_keluar:
+                # Jawaban sudah sebagian tampil, jadi tidak bisa diulang dari awal.
+                info["dipakai"] = dengan_grounding
+                yield "\n\n⚠️ Koneksi ke Gemini terputus di tengah jawaban. Coba kirim ulang pertanyaan."
+                return
+            time.sleep(1)
     raise galat_terakhir or RuntimeError("Model tidak mengembalikan jawaban.")
 
 
@@ -153,17 +189,21 @@ if prompt:
     system_prompt = build_system_prompt(logat, wilayah, gaya, grounding)
 
     with st.chat_message("assistant"):
-        with st.spinner("Sabantar, ulun cari dulu..."):
-            sumber, dipakai = [], False
-            try:
-                jawaban, sumber, dipakai = tanya_gemini(
-                    contents, system_prompt, grounding
-                )
-            except Exception as e:
-                jawaban = f"⚠️ Server Gemini sedang sibuk atau bermasalah. Coba lagi sebentar.\n\n`{e}`"
-        st.markdown(jawaban)
+        tunggu = st.empty()
+        tunggu.markdown("_Sabantar, ulun cari dulu..._")
+        info = {"sumber": [], "dipakai": False}
+        try:
+            jawaban = st.write_stream(
+                stream_gemini(contents, system_prompt, grounding, info, tunggu)
+            )
+            sumber = info["sumber"]
+        except Exception as e:
+            tunggu.empty()
+            sumber = []
+            jawaban = f"⚠️ Server Gemini sedang sibuk atau bermasalah. Coba lagi sebentar.\n\n`{e}`"
+            st.markdown(jawaban)
         tampil_sumber(sumber)
-        if grounding and not dipakai:
+        if grounding and not info["dipakai"] and not jawaban.startswith("⚠️"):
             st.caption("ℹ️ Pencarian Google tidak tersedia, jawaban memakai pengetahuan model.")
 
     st.session_state.messages.append(
